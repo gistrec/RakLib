@@ -10,6 +10,12 @@ use raklib\protocol\EncapsulatedPacket;
 interface ServerInstance{
 
 	/**
+	 * @param string $address
+	 * @param int    $port
+	 */
+	public function registerRakLibClient(string $address, int $port);
+
+	/**
 	 * @param string $identifier
 	 * @param string $address
 	 * @param int    $port

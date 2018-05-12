@@ -10,6 +10,7 @@ namespace raklib\server;
 
 use raklib\protocol\IncompatibleProtocolVersion;
 use raklib\protocol\OfflineMessage;
+use raklib\protocol\RegisterRemoteServerRequest;
 use raklib\protocol\OpenConnectionReply1;
 use raklib\protocol\OpenConnectionReply2;
 use raklib\protocol\OpenConnectionRequest1;
@@ -28,9 +29,12 @@ use raklib\utils\InternetAddress;
 class OfflineMessageHandler{
 	/** @var SessionManager */
 	private $sessionManager;
+	/** @var RemoteServerManager */
+	private $remoteServerManager;
 
-	public function __construct(SessionManager $manager){
-		$this->sessionManager = $manager;
+	public function __construct(SessionManager $sessionManager, RemoteServerManager $remoteServerManager){
+		$this->sessionManager = $sessionManager;
+		$this->remoteServerManager = $remoteServerManager;
 	}
 
 	public function handle(OfflineMessage $packet, 
@@ -89,6 +93,17 @@ class OfflineMessageHandler{
 				$this->sessionManager->sendPacket($pk, $address);
 				$this->sessionManager->createSession($address, $packet->clientID, $mtuSize);
 				return true;
+			case RegisterRemoteServerRequest::$ID:
+				// Если запрос пришел с праивльным ключем
+				if ($pk->isValid()) {
+					$id = $this->remoteServerManager->registerServer($address->ip, $address->port, $pk->isMain);
+					
+					$pk = new RegisterRemoteServerAccepted();
+					$this->sessionManager->sendPacket($pk, $address);
+				// Иначе блокируем адрес
+				}else {
+					$this->sessionManager->blockAddress($address);
+				}
 		}
 		return false;
 	}

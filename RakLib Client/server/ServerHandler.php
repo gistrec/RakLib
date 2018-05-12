@@ -176,6 +176,9 @@ var_dump("notifyACK($identifier, $identifierACK)");
 				$pingMS = Binary::readInt(substr($packet, $offset, 4));
 var_dump("updatePing($identifier, $pingMS)");
 				$this->instance->updatePing($identifier, $pingMS);
+			}elseif ($id === 0x87) {
+				$serverId = Binary::readInt(substr($packet, $offset, 4));
+				$this->server->serverId = $serverId;
 			}
 echo PHP_EOL;
 			return true;

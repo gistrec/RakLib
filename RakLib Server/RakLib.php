@@ -58,6 +58,8 @@ abstract class RakLib{
 	const DEFAULT_PROTOCOL_VERSION = 6;
 	const MAGIC = "\x00\xff\xff\x00\xfe\xfe\xfe\xfe\xfd\xfd\xfd\xfd\x12\x34\x56\x78";
 
+	const REGISTER_SERVER_KEY = "\x00\xfe\xfd\xaa\x02\x21\x2d\xff\x12\x56\x77\x43\xef\x00\x01\x00";
+
 	// Сообщения отправляются на следующий тик
 	const PRIORITY_NORMAL = 0;
 	// Сообщения отправляются сразу, не дожидаясь следующего тика

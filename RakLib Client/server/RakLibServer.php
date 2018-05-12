@@ -1,27 +1,15 @@
 <?php
 
-/*
- * RakLib network library
- *
- *
- * This project is not affiliated with Jenkins Software LLC nor RakNet.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- */
-
 declare(strict_types=1);
 
 namespace raklib\server;
+
 
 use raklib\RakLib;
 use raklib\utils\InternetAddress;
 
 class RakLibServer {
-	// Адрес раклиб
+	//** @var InternetAddress */
 	private $rakLibAddress;
 	private $serverAddress;
 
@@ -31,8 +19,9 @@ class RakLibServer {
 	protected $loaderPath;
 
 	/** @var int */
-	// TODO: Получение serverId
 	public $serverId = 0;
+
+	public $isMain = true;
 
 	protected $maxMtuSize = 1492;
 
@@ -42,18 +31,24 @@ class RakLibServer {
 	/**
 	 * @param \ThreadedLogger $logger
 	 * @param string          $autoloaderPath Path to Composer autoloader
-	 * @param InternetAddress $address
-	 * @param int             $maxMtuSize
-	 * @param int|null        $overrideProtocolVersion Optional custom protocol version to use, defaults to current RakLib's protocol
+	 * @param InternetAddress $server
+	 * @param InternetAddress $raklib
 	 */
-	public function __construct(\ThreadedLogger $logger, $autoloaderPath, $port, $ip, $overrideProtocolVersion = null){
-		// Раклиб Адрес
-		$this->rakLibAddress = new InternetAddress('192.168.0.100', 19133);
-		$this->serverAddress = new InternetAddress($ip, $port);
+	public function __construct(\ThreadedLogger $logger, $autoloaderPath, InternetAddress $server, InternetAddress $raklib, bool isMain){
+		// Адрес этого сервера
+		$this->serverAddress = $server;
+		// Раклиб адрес
+		$this->rakLibAddress = $raklib;
 
 		$this->loaderPath = $autoloaderPath;
 
-		//$this->run();
+		$this->isMain = $isMain;
+	}
+
+	public function registerRakLibClient() {
+		$buffer = chr(0x87) . chr(strlen(RakLib::REGISTER_SERVER_KEY)) .
+				RakLib::REGISTER_SERVER_KEY . isMain;
+		$this->sendToRakLib($buffer);
 	}
 
 	public function isShutdown() : bool{
@@ -80,7 +75,7 @@ class RakLibServer {
 	public function sendToRakLib($packet) {
 		$packet = chr($this->serverId) . $packet;
 		$this->UDPServerSocket->writePacket($packet, $this->rakLibAddress->ip,
-											$this->rakLibAddress->port);
+			$this->rakLibAddress->port);
 	}
 
 	public function readPacketFromRakLib() {
@@ -108,6 +103,8 @@ class RakLibServer {
 
 			$this->UDPServerSocket = new UDPServerSocket($this->serverAddress);
 			$this->socket = $this->UDPServerSocket;
+
+			$this->registerRakLibClient();
 		}catch(\Throwable $e){
 			var_dump($e);
 		}

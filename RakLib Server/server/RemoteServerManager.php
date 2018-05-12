@@ -13,6 +13,10 @@ class RemoteServerManager {
 	 */
 	public $servers = [];
 
+	// Счетчик id серверов
+	// Увеличивается на 1 при добавлении нового сервера
+	public $unique_serverId = 0;
+
 	/** @var UDPServerSocket */
 	public $internalSocket;
 	public $externalSocket;
@@ -27,8 +31,6 @@ class RemoteServerManager {
 		$this->internalSocket = $internalSocket;
 
 		$this->reusableAddress = new InternetAddress('', 0);
-
-		$this->registerServers();
 	}
 
 	public function setSessionManager(SessionManager $sessionManager) {
@@ -84,17 +86,14 @@ class RemoteServerManager {
 
 	// Функция нужна для регистрации сервера
 	// У каждого сервера есть id, ip, port, главный сервер или нет
-	private function registerServer(int $id, string $ip, int $port, bool $isMain) : void{
+	private function registerServer(string $ip, int $port, bool $isMain) : int{
 		// Создаем экземпляр сервера и добавляем его в список серверов
 		$address = new InternetAddress($ip, $port);
+		$id = $this->unique_serverId++;
 		$this->servers[$id] = new RemoteServer($this, 
 											   $this->internalSocket, 
 											   $this->externalSocket, 
 											   $address, $id, $isMain);
+		return $id;
 	}
-
-	private function registerServers() : void {
-		$this->registerServer(0, '192.168.0.100', 19130, true);
-	}
-
 }

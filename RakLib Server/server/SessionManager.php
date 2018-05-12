@@ -115,7 +115,7 @@ class SessionManager{
 		$this->startTimeMS = (int) (microtime(true) * 1000);
 		$this->maxMtuSize = $maxMtuSize;
 
-		$this->offlineMessageHandler = new OfflineMessageHandler($this);
+		$this->offlineMessageHandler = new OfflineMessageHandler($this, $remoteServerManager);
 
 		$this->reusableAddress = clone $this->externalSocket->getBindAddress();
 		
