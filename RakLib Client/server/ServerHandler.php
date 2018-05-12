@@ -176,9 +176,12 @@ var_dump("notifyACK($identifier, $identifierACK)");
 				$pingMS = Binary::readInt(substr($packet, $offset, 4));
 var_dump("updatePing($identifier, $pingMS)");
 				$this->instance->updatePing($identifier, $pingMS);
-			}elseif ($id === 0x87) {
-				$serverId = Binary::readInt(substr($packet, $offset, 4));
-				$this->server->serverId = $serverId;
+			// Если пришел пакет RegisterRemoteServerAccepted
+			}elseif ($id === 0x88){
+				echo "Получен id у RakLib Server'a" . PHP_EOL;
+				echo "Id: $id";
+				$id = Binary::readInt(substr($packet, $offset, 4));
+				$this->server->serverId = $id;
 			}
 echo PHP_EOL;
 			return true;

@@ -7,8 +7,10 @@ namespace raklib\protocol;
 
 use raklib\RakLib;
 
-class RegisterRemoteServerRequest extends OfflineMessage{
+class RegisterRemoteServerRequest extends Packet{
 	public static $ID = MessageIdentifiers::ID_REGISTER_REMOTE_SERVER_REQUEST;
+
+	public $serverId;
 
 	/**
 	 * Ключ авторизации, 16 байт
@@ -28,16 +30,16 @@ class RegisterRemoteServerRequest extends OfflineMessage{
 	// public $address;
 
 	protected function encodePayload() : void{
-		$this->writeMagic();
+		// Первый байт - id сервера
 		$this->putString(RakLib::REGISTER_SERVER_KEY);
 		$this->putByte($this->isMain);
 		//$this->putAddress($this->address);
 	}
 
 	protected function decodePayload() : void{
-		$this->readMagic();
-		$this->auth_key = $this->readString();
-		$this->isMain = $this->readByte();
+		$this->getByte();
+		$this->auth_key = $this->getString();
+		$this->isMain = $this->getBool();
 		// $this->address = $this->getAddress();
 	}
 

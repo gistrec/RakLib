@@ -8,56 +8,49 @@ namespace raklib\server;
 use raklib\protocol\EncapsulatedPacket;
 
 interface ServerInstance{
-
-	/**
-	 * @param string $address
-	 * @param int    $port
-	 */
-	public function registerRakLibClient(string $address, int $port);
-
 	/**
 	 * @param string $identifier
 	 * @param string $address
 	 * @param int    $port
 	 * @param int    $clientID
 	 */
-	public function openSession(string $identifier, string $address, int $port, int $clientID) : void;
+	public function openSession($identifier, $address, $port, $clientID);
 
 	/**
 	 * @param string $identifier
 	 * @param string $reason
 	 */
-	public function closeSession(string $identifier, string $reason) : void;
+	public function closeSession($identifier, $reason);
 
 	/**
 	 * @param string             $identifier
 	 * @param EncapsulatedPacket $packet
 	 * @param int                $flags
 	 */
-	public function handleEncapsulated(string $identifier, EncapsulatedPacket $packet, int $flags) : void;
+	public function handleEncapsulated($identifier, EncapsulatedPacket $packet, $flags);
 
 	/**
 	 * @param string $address
 	 * @param int    $port
 	 * @param string $payload
 	 */
-	public function handleRaw(string $address, int $port, string $payload) : void;
+	public function handleRaw($address, $port, $payload);
 
 	/**
 	 * @param string $identifier
 	 * @param int    $identifierACK
 	 */
-	public function notifyACK(string $identifier, int $identifierACK) : void;
+	public function notifyACK($identifier, $identifierACK);
 
 	/**
 	 * @param string $option
 	 * @param string $value
 	 */
-	public function handleOption(string $option, string $value) : void;
+	public function handleOption($option, $value);
 
 	/**
 	 * @param string $identifier
 	 * @param int    $pingMS
 	 */
-	public function updatePing(string $identifier, int $pingMS) : void;
+	public function updatePing($identifier, $pingMS);
 }

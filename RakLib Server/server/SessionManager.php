@@ -251,7 +251,7 @@ class SessionManager{
 		if($len < 1){
 			return true;
 		}
-
+var_dump($buffer);
 		// Получаем PacketID
 		$pid = ord($buffer{0});
 
