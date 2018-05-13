@@ -8,7 +8,7 @@ declare(strict_types=1);
 
 namespace raklib\server;
 
-use raklib\protocol\IncompatibleProtocolVersion;
+// use raklib\protocol\IncompatibleProtocolVersion;
 use raklib\protocol\OfflineMessage;
 use raklib\protocol\OpenConnectionReply1;
 use raklib\protocol\OpenConnectionReply2;
@@ -28,12 +28,9 @@ use raklib\utils\InternetAddress;
 class OfflineMessageHandler{
 	/** @var SessionManager */
 	private $sessionManager;
-	/** @var RemoteServerManager */
-	private $remoteServerManager;
 
-	public function __construct(SessionManager $sessionManager, RemoteServerManager $remoteServerManager){
+	public function __construct(SessionManager $sessionManager){
 		$this->sessionManager = $sessionManager;
-		$this->remoteServerManager = $remoteServerManager;
 	}
 
 	public function handle(OfflineMessage $packet, 
@@ -51,7 +48,9 @@ class OfflineMessageHandler{
 			case UnconnectedPing::$ID:
 				/** @var UnconnectedPing $packet */
 				$pk = new UnconnectedPong();
-				$pk->serverID = $this->sessionManager->getID();
+				// RakNet server ID
+				// $pk->serverID = $this->sessionManager->getID();
+				$pk->serverId = 0;
 				$pk->pingID = $packet->pingID;
 				$pk->serverName = $this->sessionManager->name;
 				$this->sessionManager->sendPacket($pk, $address);

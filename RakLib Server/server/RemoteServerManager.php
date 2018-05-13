@@ -9,6 +9,11 @@ use raklib\protocol\RegisterRemoteServerRequest;
 use raklib\protocol\RegisterRemoteServerAccepted;
 
 class RemoteServerManager {
+
+	/**
+	 * @var RakLibServer
+	 */
+	public $server;
 	/**
 	 * Сервера
 	 * @var float[] string (address) => float (unblock time) 
@@ -21,22 +26,16 @@ class RemoteServerManager {
 
 	/** @var UDPServerSocket */
 	public $internalSocket;
-	public $externalSocket;
-	/** @var SessionManager */
-	public $sessionManager;
 
 	public $reusableAddress;
 
-	public function __construct(UDPServerSocket $externalSocket, 
+	public function __construct(RakLibServer $server, 
 								UDPServerSocket $internalSocket) {
-		$this->externalSocket = $externalSocket;
+		$this->server = $server;
+
 		$this->internalSocket = $internalSocket;
 
 		$this->reusableAddress = new InternetAddress('', 0);
-	}
-
-	public function setSessionManager(SessionManager $sessionManager) {
-		$this->sessionManager = $sessionManager;
 	}
 
 	// Получаем главный сервер (или, наверное лучше сказать доступный)
@@ -52,9 +51,16 @@ class RemoteServerManager {
 		return $server;
 	}
 
+	/**
+	 * Выполняется каждый 'тик'
+	 */
+	public function tick() : void{
+		// TODO
+	}
+
 	// Получаем информацию с сервера
 	// И перенаправляем её классу сервера
-	public function receiveStream() : bool{
+	public function receivePacket() : bool{
 		$address = $this->reusableAddress;
 
 		// Получаем данные из сокета
@@ -80,7 +86,7 @@ class RemoteServerManager {
 var_dump($buffer);
 
 		if (isset($this->servers[$serverId])) {
-			$this->servers[$serverId]->receiveStream($buffer);
+			$this->servers[$serverId]->receivePacket($buffer);
 
 		// Если сервер пытается зарегестрироваться
 		}elseif ($serverId == 0xff && ord($buffer{1}) == 0x87) {
@@ -123,8 +129,7 @@ var_dump($buffer);
 		$address = new InternetAddress($ip, $port);
 		$id = $this->unique_serverId++;
 		$this->servers[$id] = new RemoteServer($this, 
-											   $this->internalSocket, 
-											   $this->externalSocket, 
+											   $this->internalSocket,
 											   $address, $id, $isMain);
 		return $id;
 	}
