@@ -158,7 +158,6 @@ class Session{
 
 	/*
 	 * Одна из основных функций класса Session
-	 * Выполняется каждый 'тик' (вызывается из функции SessionManager::tickProcessor)
 	 *
 	 * Проверяет сессию на активность (что последний пакет пришел в течении пришлых 10 секунд)
 	 * Отправляем все пакеты из очередей
@@ -303,9 +302,9 @@ class Session{
 
 	private function sendPing(int $reliability = PacketReliability::UNRELIABLE) : void{
 		$pk = new ConnectedPing();
-		$pk->sendPingTime = $this->sessionManager->getRakNetTimeMS();
+		$pk->sendPingTime = $this->sessionManager->server->getRakNetTimeMS();
 		$this->queueConnectedPacket($pk, $reliability, 0, RakLib::PRIORITY_IMMEDIATE);
-	}
+	}	
 
 	/**
 	 * @param EncapsulatedPacket $pk
@@ -473,7 +472,7 @@ class Session{
 					$pk = new ConnectionRequestAccepted;
 					$pk->address = $this->address;
 					$pk->sendPingTime = $dataPacket->sendPingTime;
-					$pk->sendPongTime = $this->sessionManager->getRakNetTimeMS();
+					$pk->sendPongTime = $this->sessionManager->server->getRakNetTimeMS();
 					$this->queueConnectedPacket($pk, PacketReliability::UNRELIABLE, 0, RakLib::PRIORITY_IMMEDIATE);
 				}elseif($id === NewIncomingConnection::$ID){
 					$dataPacket = new NewIncomingConnection($packet->buffer);
@@ -498,7 +497,7 @@ class Session{
 
 				$pk = new ConnectedPong;
 				$pk->sendPingTime = $dataPacket->sendPingTime;
-				$pk->sendPongTime = $this->sessionManager->getRakNetTimeMS();
+				$pk->sendPongTime = $this->sessionManager->server->getRakNetTimeMS();
 				$this->queueConnectedPacket($pk, PacketReliability::UNRELIABLE, 0);
 			}elseif($id === ConnectedPong::$ID){
 				$dataPacket = new ConnectedPong($packet->buffer);
@@ -521,7 +520,7 @@ class Session{
 	 * @param int $sendPongTime TODO: clock differential stuff
 	 */
 	private function handlePong(int $sendPingTime, int $sendPongTime) : void{
-		$this->lastPingMeasure = $this->sessionManager->getRakNetTimeMS() - $sendPingTime;
+		$this->lastPingMeasure = $this->sessionManager->server->getRakNetTimeMS() - $sendPingTime;
 		$this->remoteServer->streamPingMeasure($this, $this->lastPingMeasure);
 	}
 
@@ -611,7 +610,7 @@ class Session{
 			//TODO: the client will send an ACK for this, but we aren't handling it (debug spam)
 			$this->queueConnectedPacket(new DisconnectionNotification(), PacketReliability::RELIABLE_ORDERED, 0, RakLib::PRIORITY_IMMEDIATE);
 
-			var_dump("Closed session for $this->address");
+			var_dump("Закрыта сессия для $this->address");
 			$this->sessionManager->removeSessionInternal($this);
 			$this->sessionManager = null;
 		}

@@ -25,22 +25,15 @@ class RegisterRemoteServerRequest extends Packet{
 	 */
 	public $isMain;
 
-	// TODO: Нужен ли адрес?
-	/** @var InternetAddress */
-	// public $address;
 
 	protected function encodePayload() : void{
-		// Первый байт - id сервера
 		$this->putString(RakLib::REGISTER_SERVER_KEY);
 		$this->putByte($this->isMain);
-		//$this->putAddress($this->address);
 	}
 
 	protected function decodePayload() : void{
-		$this->getByte();
 		$this->auth_key = $this->getString();
 		$this->isMain = $this->getBool();
-		// $this->address = $this->getAddress();
 	}
 
 	// Проверка на совпадение ключей

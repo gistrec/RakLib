@@ -62,7 +62,15 @@ class ServerHandler{
 	}
 
 	// Отправляем данные на RakLib Server
+	// Функция вызывается каждую секунду
 	public function sendOption(string $name, $value) : void{
+		// Если сервер не получил id - пытаемся получить
+		if ($this->server->isRegister == false) {
+			$this->server->logger->warning("Сервер еще не получил ID у прокси.");
+			$this->server->logger->warning("Производится попытка подключения");
+		
+			$this->server->registerRakLibClient();
+		}
 		$buffer = chr(RakLib::PACKET_SET_OPTION) . 
 			      chr(strlen($name)) . $name . $value;
 		$this->server->sendToRakLib($buffer);
@@ -178,10 +186,10 @@ var_dump("updatePing($identifier, $pingMS)");
 				$this->instance->updatePing($identifier, $pingMS);
 			// Если пришел пакет RegisterRemoteServerAccepted
 			}elseif ($id === 0x88){
-				echo "Получен id у RakLib Server'a" . PHP_EOL;
-				echo "Id: $id";
-				$id = Binary::readInt(substr($packet, $offset, 4));
-				$this->server->serverId = $id;
+				if (!$this->server->isRegister) {
+					$this->server->logger->info("Сервер зарегестрировался у прокси");
+					$this->server->isRegister = true;
+				}
 			}
 echo PHP_EOL;
 			return true;

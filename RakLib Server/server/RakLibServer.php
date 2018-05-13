@@ -26,8 +26,8 @@ class RakLibServer {
 	 */
 	private $internalAddress;
 
-	private $sessionManager;
-	private $remoteServerManager;
+	public $sessionManager;
+	public $remoteServerManager;
 
 	/** @var int */
 	protected $maxMtuSize;
@@ -37,6 +37,12 @@ class RakLibServer {
 	 * @var int 
 	*/
 	protected $startTimeMS;
+	/** 
+	 * TODO:
+	 * Название сервера, отправляется в UnconnectedPing
+	 * MCPE;Название;две версии протокола через пробел;версия сервера;текущий онлайн;всего онлайн
+	 */
+	public $name = "MCPE;§b§lRaklibTest;10 10;1.1.0;0;1000";
 
 	public function __construct(InternetAddress $externalAddress,
 								InternetAddress $internalAddress,
@@ -50,8 +56,6 @@ class RakLibServer {
 		$this->startTimeMS = (int) (microtime(true) * 1000);
 
 		$this->protocolVersion = RakLib::DEFAULT_PROTOCOL_VERSION;
-
-		$this->run();
 	}
 
 	public function shutdown() : void{
