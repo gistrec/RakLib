@@ -144,7 +144,7 @@ class EncapsulatedPacket{
 	/**
 	 * @return string
 	 */
-	public function toBinary() : string{
+	public function toBinary($internal = false){
 		return
 			chr(($this->reliability << self::RELIABILITY_SHIFT) | ($this->hasSplit ? self::SPLIT_FLAG : 0)) .
 			Binary::writeShort(strlen($this->buffer) << 3) .

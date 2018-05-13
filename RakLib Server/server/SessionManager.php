@@ -28,9 +28,6 @@ use raklib\utils\InternetAddress;
 
 class SessionManager{
 
-	const RAKLIB_TPS = 100;
-	const RAKLIB_TIME_PER_TICK = 1 / self::RAKLIB_TPS;
-
 	/** @var \SplFixedArray<Packet|null> */
 	protected $packetPool;
 
@@ -38,11 +35,6 @@ class SessionManager{
 	protected $server;
 	/** @var UDPServerSocket */
 	public $externalSocket;
-	/**
-	 * Менеджер удаленных серверов
-	 * @var RemoteServerManager
-	 */
-	public $remoteServerManager;
 
 	/** @var int */
 	protected $receiveBytes = 0;
@@ -88,12 +80,6 @@ class SessionManager{
 	*/
 	protected $ipSec = [];
 
-	/**
-	 * Начало работы сервера в microtime(true) * 1000
-	 * @var int 
-	*/
-	protected $startTimeMS;
-
 	/** 
 	 * Максимальный размер пакета
 	 * @var int
@@ -105,70 +91,27 @@ class SessionManager{
 
 	public function __construct(RakLibServer $server,
 								UDPServerSocket $externalSocket,
-								RemoteServerManager $remoteServerManager,
 								int $maxMtuSize){
 		$this->server = $server;
 		$this->externalSocket = $externalSocket;
-		$this->remoteServerManager = $remoteServerManager;
-		$this->remoteServerManager->setSessionManager($this);
 
-		$this->startTimeMS = (int) (microtime(true) * 1000);
 		$this->maxMtuSize = $maxMtuSize;
 
-		$this->offlineMessageHandler = new OfflineMessageHandler($this, $remoteServerManager);
+		$this->offlineMessageHandler = new OfflineMessageHandler($this);
 
 		$this->reusableAddress = clone $this->externalSocket->getBindAddress();
 		
 		$this->registerPackets();
-		$this->run();
 	}
+
+
 
 	/**
-	 * Возвращает время работы RakNet сервера в милисекундах
-	 * @return int
-	 */
-	public function getRakNetTimeMS() : int{
-		return ((int) (microtime(true) * 1000)) - $this->startTimeMS;
-	}
-
-	public function run() : void{
-		$this->tickProcessor();
-	}
-
-	/**
-	 * Основная функция RakLib сервера
-	 * Должна выполняться RAKLIB_TPS раз в секунду
-	 * В ней мы читаем входящие пакеты из сокета и
-	 * отправляем на них ответ
-	 */
-	private function tickProcessor() : void{
-		// Обновляем время последнего тика
-		$this->lastMeasure = microtime(true);
-
-		// Если сервер не остановлен
-		while(!$this->shutdown){
-			// Получаем время - начало обработки входящих пакетов
-			$start = microtime(true);
-			// Обрабатываем все входящие пакеты
-			while($this->receivePacket()){}
-			while($this->remoteServerManager->receiveStream()){}
-
-			// Получаем время за которое обработались входящие пакеты
-			$time = microtime(true) - $start;
-			// Если они обработались слишком быстро - усыпляем скрипт
-			if($time < self::RAKLIB_TIME_PER_TICK){
-				@time_sleep_until(microtime(true) + self::RAKLIB_TIME_PER_TICK - $time);
-			}
-			$this->tick();
-		}
-	}
-
-	/**
-	 * Выполняется каждый 'тик' (вызывается из функции tickProcessor)
+	 * Выполняется каждый 'тик'
 	 * Обновляем все сессии
 	 * А так же каждую секунду уменьшаем время блокировки в $this->block
 	 */
-	private function tick() : void{
+	public function tick() : void{
 		$time = microtime(true);
 		foreach($this->sessions as $session){
 			$session->update($time);
@@ -177,7 +120,7 @@ class SessionManager{
 		$this->ipSec = [];
 
 		// Каждую секунду
-		if(($this->ticks % self::RAKLIB_TPS) === 0){
+		if(($this->ticks % RakLibServer::RAKLIB_TPS) === 0){
 			// TODO: update statistic
 			//$diff = max(0.005, $time - $this->lastMeasure);
 			//$this->streamOption("bandwidth", serialize([
@@ -185,8 +128,8 @@ class SessionManager{
 			//	"down" => $this->receiveBytes / $diff
 			//]));
 			$this->lastMeasure = $time;
-			$this->sendBytes = 0;
-			$this->receiveBytes = 0;
+			// $this->sendBytes = 0;
+			// $this->receiveBytes = 0;
 
 			// Уменьшаем время блокировки для всех заблокированных клиентов
 			if(count($this->block) > 0){
@@ -202,7 +145,6 @@ class SessionManager{
 			}
 		}
 
-
 		++$this->ticks;
 	}
 
@@ -212,7 +154,7 @@ class SessionManager{
 	 * Получаем данные из сокета
 	 * И обрабаытваем их - получаем сессию, получаем Packet ID
 	 */
-	private function receivePacket() : bool{
+	public function receivePacket() : bool{
 		$address = $this->reusableAddress;
 
 		// Получаем данные из сокета
@@ -224,7 +166,9 @@ class SessionManager{
 			return false;
 		}
 
-		$this->receiveBytes += $len;
+		// Todo: statistic
+		// $this->receiveBytes += $len;
+		
 		// Если адрес заблокирован, т.е. его пакеты игнорируются
 		// то выходим из функции
 		if(isset($this->block[$address->ip])){
@@ -352,7 +296,7 @@ class SessionManager{
 		$this->checkSessions();
 
 		// Получаем сервер, к которому будет подключен новый игрок
-		$server = $this->remoteServerManager->getMainServer();
+		$server = $this->server->remoteServerManager->getMainServer();
 
 		$session = new Session($this, clone $address, $server, $clientId, $mtuSize);
 		$this->sessions[$address->toString()] = $session;
@@ -394,10 +338,6 @@ class SessionManager{
 				}
 			}
 		}
-	}
-
-	public function getID() : int{
-		return $this->server->getServerId();
 	}
 
 	/**

@@ -32,28 +32,41 @@ class RemoteServer {
 
 	/** @var UDPServerSocket */
 	public $internalSocket;
-	/** @var UDPServerSocket */
-	public $externalSocket;
+
+	/** 
+	 * Время последнего обновления
+	 * @var [type]
+	 */
+	private $lastUpdate;
+
+	/** 
+	 * Время последнего пришедшего пакета
+	 * @var integer
+	 */
+	private $lastPingTime = -1;
+
 
 	public function __construct(RemoteServerManager $remoteServerManager, 
 		                        UDPServerSocket $internalSocket, 
-		                        UDPServerSocket $externalSocket,
 		                        InternetAddress $address, 
 		                        int $id, bool $isMain
 	){
 		$this->remoteServerManager = $remoteServerManager;
 		$this->internalSocket = $internalSocket;
-		$this->externalSocket = $externalSocket;
 
 		$this->address = $address;
 		$this->id = $id;
 		$this->main = $isMain;
 	} 
 
+	public function update() {
+
+	}
+
 	// Функция вызывается при получении пакета с сервера
 	// 1 байт - Id сервера
 	// 1 байт - Id пакета
-	public function receiveStream($packet) : bool{
+	public function receivePacket($packet) : bool{
 		$id = ord($packet{1});
 		$offset = 2; // 1 байт - id сервера, 1 байт - id пакета
 		if($id === RakLib::PACKET_ENCAPSULATED){
@@ -77,7 +90,8 @@ var_dump("Сессия с identifier $identifier не найдена");
 			$port = Binary::readShort(substr($packet, $offset, 2));
 			$offset += 2;
 			$payload = substr($packet, $offset);
-			$this->externalSocket->writePacket($payload, $address, $port);
+			$address = new InternetAddress($address, $port);
+			$this->server->sessionManager->sendPacket($payload, $address);
 		}elseif($id === RakLib::PACKET_CLOSE_SESSION){
 			$len = ord($packet{$offset++});
 			$identifier = substr($packet, $offset, $len);

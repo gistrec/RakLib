@@ -19,7 +19,7 @@ class RakLibServer {
 	protected $loaderPath;
 
 	/** @var int */
-	public $serverId = 0;
+	public $serverId = -1;
 
 	public $isMain = true;
 
@@ -30,24 +30,22 @@ class RakLibServer {
 
 	/**
 	 * @param \ThreadedLogger $logger
-	 * @param string          $autoloaderPath Path to Composer autoloader
 	 * @param InternetAddress $server
 	 * @param InternetAddress $raklib
 	 */
-	public function __construct(\ThreadedLogger $logger, $autoloaderPath, InternetAddress $server, InternetAddress $raklib, bool isMain){
+	public function __construct(\ThreadedLogger $logger, InternetAddress $server, InternetAddress $raklib, bool $isMain){
 		// Адрес этого сервера
 		$this->serverAddress = $server;
 		// Раклиб адрес
 		$this->rakLibAddress = $raklib;
 
-		$this->loaderPath = $autoloaderPath;
-
-		$this->isMain = $isMain;
+		$this->isMain = $isMain;	
 	}
 
 	public function registerRakLibClient() {
-		$buffer = chr(0x87) . chr(strlen(RakLib::REGISTER_SERVER_KEY)) .
-				RakLib::REGISTER_SERVER_KEY . isMain;
+		$buffer = chr(0x87) . pack("n", strlen(RakLib::REGISTER_SERVER_KEY)) .
+				RakLib::REGISTER_SERVER_KEY . ($this->isMain ? "\x01" : "\x00");
+		var_dump($this->rakLibAddress);
 		$this->sendToRakLib($buffer);
 	}
 

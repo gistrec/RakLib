@@ -12,6 +12,9 @@ use raklib\RakLib;
 use raklib\utils\InternetAddress;
 
 class RakLibServer {
+	const RAKLIB_TPS = 100;
+	const RAKLIB_TIME_PER_TICK = 1 / self::RAKLIB_TPS;
+
 	/**
 	 * Ip адрес для общения с внешним миром
 	 * @var InternetAddress
@@ -19,20 +22,21 @@ class RakLibServer {
 	private $externalAddress;
 	/**
 	 * Ip адрес для общения с серверами майна
-	 * Входящие пакеты фильтруются по ip
 	 * @var InternetAddress
 	 */
 	private $internalAddress;
 
-	/** @var bool */
-	protected $shutdown = false;
+	private $sessionManager;
+	private $remoteServerManager;
 
 	/** @var int */
-	protected $serverId = 0;
-	/** @var int */
 	protected $maxMtuSize;
-	/** @var int */
-	private $protocolVersion;
+
+	/**
+	 * Начало работы сервера в microtime(true) * 1000
+	 * @var int 
+	*/
+	protected $startTimeMS;
 
 	public function __construct(InternetAddress $externalAddress,
 								InternetAddress $internalAddress,
@@ -43,27 +47,52 @@ class RakLibServer {
 		$this->serverId = mt_rand(0, PHP_INT_MAX);
 		$this->maxMtuSize = $maxMtuSize;
 
-		$this->protocolVersion = RakLib::DEFAULT_PROTOCOL_VERSION;
-	}
+		$this->startTimeMS = (int) (microtime(true) * 1000);
 
-	public function isShutdown() : bool{
-		return $this->shutdown === true;
+		$this->protocolVersion = RakLib::DEFAULT_PROTOCOL_VERSION;
+
+		$this->run();
 	}
 
 	public function shutdown() : void{
-		$this->shutdown = true;
+		// TODO: А нужно ли выключать?
 	}
 
 	/**
-	 * Returns the RakNet server ID
+	 * Возвращает время работы RakNet сервера в милисекундах
 	 * @return int
 	 */
-	public function getServerId() : int{
-		return $this->serverId;
+	public function getRakNetTimeMS() : int{
+		return ((int) (microtime(true) * 1000)) - $this->startTimeMS;
 	}
 
-	public function getProtocolVersion() : int{
-		return $this->protocolVersion;
+	/**
+	 * Основная функция RakLib сервера
+	 * Должна выполняться RAKLIB_TPS раз в секунду
+	 * Обновляем sessionManager и removeServerManager
+	 */
+	private function tickProcessor() : void{
+		// Обновляем время последнего тика
+		$this->lastMeasure = microtime(true);
+
+		while(true){
+			// Получаем время - начало обработки входящих пакетов
+			$start = microtime(true);
+			// Обрабатываем все входящие пакеты от клиентов и от серверов
+			while($this->sessionManager->receivePacket()){}
+			while($this->remoteServerManager->receivePacket()){}
+
+			// Получаем время за которое всё обработали
+			$time = microtime(true) - $start;
+
+			// Если они обработались слишком быстро - ненадолго останавливаемся
+			if($time < self::RAKLIB_TIME_PER_TICK){
+				@time_sleep_until(microtime(true) + self::RAKLIB_TIME_PER_TICK - $time);
+			}
+
+			$this->sessionManager->tick();
+			$this->remoteServerManager->tick();
+		}
 	}
 
 	public function run() : void{
@@ -71,10 +100,16 @@ class RakLibServer {
 			$externalSocket = new UDPServerSocket($this->externalAddress);
 			$internalSocket = new UDPServerSocket($this->internalAddress);
 
-			$remoteServerManager = new RemoteServerManager($externalSocket, 
-														   $internalSocket);
-			new SessionManager($this, $externalSocket, $remoteServerManager, $this->maxMtuSize);
-			echo 'RakLib server start on ' . $socket->getBindAddress() . PHP_EOL; 
+			$this->remoteServerManager = new RemoteServerManager($this, $internalSocket);
+
+			$this->sessionManager = new SessionManager($this, $externalSocket, 
+				                                       $this->maxMtuSize);
+
+			echo 'Раклиб запущен '    . PHP_EOL;
+			echo 'Внешний адрес: '    . $externalSocket->getBindAddress() . PHP_EOL;
+			echo 'Внутренний адрес: ' . $internalSocket->getBindAddress() . PHP_EOL; 
+
+			$this->tickProcessor();
 		}catch(\Throwable $e){
 			var_dump($e);
 		}

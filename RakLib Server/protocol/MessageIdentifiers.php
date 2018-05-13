@@ -398,7 +398,9 @@ interface MessageIdentifiers{
 	const ID_RESERVED_9 = 0x85;
 
 	// For the user to use.  Start your first enumeration at this value.
-	const ID_REGISTER_REMOTE_SERVER = 0x86;
-	const ID_REGISTER_REMOTE_SERVER_ACCEPTED = 0x87
+	const ID_USER_PACKET_ENUM = 0x86;
+	
+	const ID_REGISTER_REMOTE_SERVER_REQUEST = 0x87;
+	const ID_REGISTER_REMOTE_SERVER_ACCEPTED = 0x88;
 	//-------------------------------------------------------------------------------------------------------------
 }
