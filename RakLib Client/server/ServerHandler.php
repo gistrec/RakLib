@@ -108,9 +108,6 @@ class ServerHandler{
 		// $this->server->pushMainToThreadPacket(chr(RakLib::PACKET_EMERGENCY_SHUTDOWN));
 	}
 
-	// В отличие от пакетов, которые идут на раклиб сервер
-	// У входящих пакетов с раклиба первый байт - не id сервера
-	// Поэтому используем стандартную функцию
 	public function handlePacket() : bool{
 		$address = $this->reusableAddress;
 		if($this->server->socket->readPacket($packet, $address->ip, $address->port) > 0){
@@ -189,6 +186,13 @@ var_dump("updatePing($identifier, $pingMS)");
 				if (!$this->server->isRegister) {
 					$this->server->logger->info("Сервер зарегестрировался у прокси");
 					$this->server->isRegister = true;
+				}
+			}elseif ($id === 0x89) {
+				if (RakLib::REGISTER_SERVER_KEY == substr($packet, 1, 17)) {
+					$this->server->logger->critical("Прокси сервер отвалился");
+					$this->server->isRegister = false;
+				}else {
+					// TODO: блок адрес
 				}
 			}
 echo PHP_EOL;

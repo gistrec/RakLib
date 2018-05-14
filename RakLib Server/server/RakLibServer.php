@@ -37,6 +37,10 @@ class RakLibServer {
 	 * @var int 
 	*/
 	protected $startTimeMS;
+	
+	/** @var int */
+	public $ticks = 0;
+
 	/** 
 	 * TODO:
 	 * Название сервера, отправляется в UnconnectedPing
@@ -96,7 +100,17 @@ class RakLibServer {
 
 			$this->sessionManager->tick();
 			$this->remoteServerManager->tick();
+			
+			$this->ticks += 1;
 		}
+	}
+
+	// TODO:
+	// Функция вызывается при выключении/краше раклиба 
+	public function shutdownHandler() {
+		echo "Производится отключение раклиба" . PHP_EOL;
+		$this->sessionManager->raklibCrash();
+		$this->remoteServerManager->raklibCrash();
 	}
 
 	public function run() : void{
@@ -108,6 +122,8 @@ class RakLibServer {
 
 			$this->sessionManager = new SessionManager($this, $externalSocket, 
 				                                       $this->maxMtuSize);
+
+			//register_shutdown_function([$this, "shutdownHandler"]);
 
 			echo 'Раклиб запущен '    . PHP_EOL;
 			echo 'Внешний адрес: '    . $externalSocket->getBindAddress() . PHP_EOL;

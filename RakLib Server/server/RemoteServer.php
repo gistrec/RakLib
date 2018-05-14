@@ -33,7 +33,7 @@ class RemoteServer {
 
 	/** 
 	 * Время последнего обновления
-	 * @var [type]
+	 * @var float
 	 */
 	private $lastUpdate;
 
@@ -58,31 +58,26 @@ class RemoteServer {
 		$this->lastUpdate = microtime(true);
 	} 
 
+	// Вызывается каждую секунду
 	public function update(float $time) {
-		if($this->lastUpdate + 10 < $time){
+		if($this->lastUpdate + 10 < $time) {
 			echo "Сервер " . $this->address->toString() . " недоступен больше 10 секунд" . PHP_EOL;
 			$this->emergencyShutdown();
 
 			return;
 		}
+		// Add Ping
 	}
 
-	// Функция вызывается при таймауте сервера
-	// Или при если пришел пакет PACKET_EMERGENCY_SHUTDOWN
-	// В этом случае нужно перекинуть игроков на другой сервер
+	// Функция вызывается при выключении/таймауте сервера
+	// В этом случае нужно перекинуть игроков на другой главный сервер
 	public function emergencyShutdown() {
 		var_dump("TODO: Переместить игроков на другой main сервер");
-		$this->remoteServerManager->closeServer($this->address);
-	}
-
-	// Функция вызывается, если с сервера пришел пакет PACKET_SHUTDOWN
-	// Значит на сервере нет игроков. Все они переброшены на другой сервер
-	public function safeShutdown() {
-		$this->remoteServerManager->closeServer($this->address);
+		$this->remoteServerManager->removeServer($this->address);
 	}
 
 	// Функция вызывается при получении пакета с сервера
-	public function receivePacket($packet) : bool{
+	public function handlePacket($packet) : bool{
 		$this->lastUpdate = microtime(true);
 
 		$id = ord($packet{0});
@@ -98,7 +93,7 @@ class RemoteServer {
 				$buffer = substr($packet, $offset);
 				$session->addEncapsulatedToQueue(EncapsulatedPacket::fromInternalBinary($buffer), $flags);
 			}else{
-var_dump("Сессия с identifier $identifier не найдена");
+				echo "Error: Сессия с identifier $identifier не найдена" . PHP_EOL;
 				$this->streamInvalid($identifier);
 			}
 		}elseif($id === RakLib::PACKET_RAW){
@@ -116,7 +111,6 @@ var_dump("Сессия с identifier $identifier не найдена");
 			if(isset($this->sessions[$identifier])){
 				$this->sessions[$identifier]->flagForDisconnection();
 			}else{
-var_dump("PACKET_CLOSE_SESSION");
 				$this->streamInvalid($identifier);
 			}
 		}elseif($id === RakLib::PACKET_INVALID_SESSION){
@@ -151,14 +145,9 @@ var_dump("PACKET_CLOSE_SESSION");
 			$len = ord($packet{$offset++});
 			$address = substr($packet, $offset, $len);
 			$this->unblockAddress($address);
-		}elseif($id === RakLib::PACKET_SHUTDOWN){
-			/*foreach($this->sessions as $session){
-				$this->removeSession($session);
-			}
-			$this->externalSocket->close();
-			$this->shutdown = true;*/
-		}elseif($id === RakLib::PACKET_EMERGENCY_SHUTDOWN){
-			/*$this->shutdown = true;*/
+		}elseif($id === RakLib::PACKET_SHUTDOWN || 
+				$id === RakLib::PACKET_EMERGENCY_SHUTDOWN){
+			$this->shutdown();
 		}elseif($id === 0x87) {
 			// Если сервер еще раз просит зарегестрироваться
 			// Говорим, что он уже зарегестрирован
@@ -171,8 +160,8 @@ var_dump("PACKET_CLOSE_SESSION");
 		return true;
 	}
 
-	// ВЫЗЫВАЕМ НА СЕРВЕРЕ МАЙНА otifyACK($identifier, $identifierACK);
-	public function notifyACK(Session $session, int $identifierACK) : void{
+	// ВЫЗЫВАЕМ НА СЕРВЕРЕ МАЙНА notifyACK($identifier, $identifierACK);
+	public function streamNotifyACK(Session $session, int $identifierACK) : void{
 		$identifier = $session->address->toString();
 
 		$buffer = chr(RakLib::PACKET_ACK_NOTIFICATION) . chr(strlen($identifier)) . 
@@ -181,12 +170,20 @@ var_dump("PACKET_CLOSE_SESSION");
 	}
 
     // Закрываем сессию
-    // Для этого отправляем mcpe серверу PACKET_CLOSE_SESSION пакет
     // И удаляем сессию из массива сессий текущего сервера
-    public function closeSession(Session $session) {
+    public function streamСloseSession(Session $session, $reason = "RakLib close") {
+    	// ВЫЗЫВАЕМ НА СЕРВЕРЕ
+		// closeSession($identifier, $reason);
+		// echo '##############################' . PHP_EOL;
+		// echo 'Call on mcpe server: closeSession($identifier, $reason);' . PHP_EOL;
+		// echo '##############################' . PHP_EOL;
     	$identifier = $session->address->toString();
+		$buffer = chr(RakLib::PACKET_CLOSE_SESSION) . chr(strlen($identifier)) . 
+				  $identifier . chr(strlen($reason)) . $reason;
+		// TODO: Когда убирать сессию из массива сессий SessionManager
+		// И нужно ли?
     	unset($this->sessions[$identifier]);
-    	$this->streamClose($identifier, 'RakLib ping timeout');
+    	$this->sendPacket($buffer);
     }
 
 	public function streamPingMeasure(Session $session, int $pingMS) : void{
@@ -202,7 +199,7 @@ var_dump("PACKET_CLOSE_SESSION");
 	}
 
 	// ВЫЗЫВАЕМ НА СЕРВЕРЕ МАЙНА openSession($identifier, $address, $port, $clientID);
-	public function openSession(Session $session) : void{
+	public function streamOpenSession(Session $session) : void{
 		$address = $session->address;
 		$identifier = $address->toString();
 		$this->sessions[$identifier] = $session;
@@ -227,16 +224,6 @@ var_dump("PACKET_CLOSE_SESSION");
 
 	}
 
-	public function streamClose(string $identifier, string $reason) : void{
-		// ВЫЗЫВАЕМ НА СЕРВЕРЕ
-		// closeSession($identifier, $reason);
-		// echo '##############################' . PHP_EOL;
-		// echo 'Call on mcpe server: closeSession($identifier, $reason);' . PHP_EOL;
-		// echo '##############################' . PHP_EOL;
-		$buffer = chr(RakLib::PACKET_CLOSE_SESSION) . chr(strlen($identifier)) . 
-				  $identifier . chr(strlen($reason)) . $reason;
-		$this->sendPacket($buffer);
-	}
 	public function streamRaw(InternetAddress $source, string $payload) : void{
 		// ВЫЗЫВАЕМ НА СЕРВЕРЕ
 		// handleRaw($address, $port, $payload);

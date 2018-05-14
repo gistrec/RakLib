@@ -1,7 +1,6 @@
 <?php
-
 gc_enable();
-error_reporting(-1);
+error_reporting(E_ALL);
 ini_set("display_errors", '1');
 ini_set("display_startup_errors", '1');
 
@@ -18,8 +17,6 @@ $externalAddress = new InternetAddress('192.168.0.100', 19132);
 $internetAddress = new InternetAddress('192.168.0.100', 19133);
 
 
+
 $raklibServer = new RakLibServer($externalAddress, $internetAddress);
 $raklibServer->run();
-
-
-echo "test";
