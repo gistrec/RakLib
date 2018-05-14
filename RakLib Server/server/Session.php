@@ -156,6 +156,19 @@ class Session{
 		return $this->state !== self::STATE_DISCONNECTING and $this->state !== self::STATE_DISCONNECTED;
 	}
 
+	// Перенаправляем игрока на другой сервер
+	public function transfer(RemoteServer $server) {
+		// Создаем сессию на новом сервере
+		$server->streamOpenSession($this);
+		
+		// Перенаправляем пакеты на новый сервер
+		$oldServer = $this->remoteServer;
+		$this->remoteServer = $server;
+
+		// Закрываем сессию на старом сервере
+		$oldServer->streamCloseSession($this);
+	}
+
 	/*
 	 * Одна из основных функций класса Session
 	 *
@@ -231,7 +244,7 @@ class Session{
 					// TODO:
 					// ВЫПОЛНЯЕМ НА СЕРВЕРЕ МАЙНА
 					// notifyACK($identifier, $identifierACK);
-					$this->remoteServer->notifyACK($this, $identifierACK);
+					$this->remoteServer->streamNotifyACK($this, $identifierACK);
 				}
 			}
 		}
@@ -304,6 +317,14 @@ class Session{
 		$pk = new ConnectedPing();
 		$pk->sendPingTime = $this->sessionManager->server->getRakNetTimeMS();
 		$this->queueConnectedPacket($pk, $reliability, 0, RakLib::PRIORITY_IMMEDIATE);
+	
+		//$server = $this->sessionManager->server->remoteServerManager->remoteServers['192.168.0.100 19129'];
+		foreach ($this->sessionManager->server->remoteServerManager->remoteServers as $server) {
+			var_dump("Сервера: " . $server->address->toString());
+		}
+		exit();
+		//if ($result = -mt_rand(0, 10)) $this->transfer($server);
+		//var_dump("Result: " . $result);
 	}	
 
 	/**
@@ -482,7 +503,7 @@ class Session{
 						$this->state = self::STATE_CONNECTED; //FINALLY!
 						$this->isTemporal = false;
 						
-						$this->remoteServer->openSession($this);
+						$this->remoteServer->streamOpenSession($this);
 
 						//$this->handlePong($dataPacket->sendPingTime, $dataPacket->sendPongTime); //can't use this due to system-address count issues in MCPE >.<
 						//$this->sendPing();
@@ -600,9 +621,6 @@ class Session{
 		$this->disconnectionTime = microtime(true);
 	}
 
-	/*
-	 *
-	 */
 	public function close() : void{
 		if($this->state !== self::STATE_DISCONNECTED){
 			$this->state = self::STATE_DISCONNECTED;

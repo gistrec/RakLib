@@ -50,9 +50,6 @@ class SessionManager{
 	/** @var bool */
 	protected $shutdown = false;
 
-	/** @var int */
-	protected $ticks = 0;
-
 	/** 
 	 * Заблокированные адреса
 	 * @var float[] string (address) => float (unblock time) 
@@ -103,7 +100,7 @@ class SessionManager{
 		$this->ipSec = [];
 
 		// Каждую секунду
-		if(($this->ticks % RakLibServer::RAKLIB_TPS) === 0){
+		if(($this->server->ticks % RakLibServer::RAKLIB_TPS) === 0){
 
 			// Уменьшаем время блокировки для всех заблокированных клиентов
 			if(count($this->block) > 0){
@@ -118,8 +115,6 @@ class SessionManager{
 				}
 			}
 		}
-
-		++$this->ticks;
 	}
 
 	
@@ -273,7 +268,7 @@ class SessionManager{
 	}
 
 	/**
-	 * Удаление сессии из раклиба 
+	 * Удаление сессии из раклиба
 	 */
 	public function removeSession(Session $session, string $reason = "unknown") : void{
 		$id = $session->getAddress()->toString();
@@ -282,12 +277,12 @@ class SessionManager{
 			var_dump("Удалили сессию $id");
 			// TODO: 
 			// ВЫЗЫВАЕМ НА СЕРВЕРЕ МАЙНА closeSession($identifier, $reason);
-			$session->remoteServer->closeSession($session);
+			$session->remoteServer->streamCloseSession($session);
 		}
 	}
 
 	/*
-	 * Удаление сессии на серверве
+	 * Сессия сперва удалилась на сервере
 	 * Поэтому просто убираем из массива сессий
 	 */
 	public function removeSessionInternal(Session $session) : void{
@@ -304,6 +299,14 @@ class SessionManager{
 					}
 				}
 			}
+		}
+	}
+
+	// Функция вызывается при краше раклиба
+	// Закрываем все сессии
+	public function raklibCrash() {
+		foreach ($this->sessions as $session) {
+			$this->removeSession($session, "Краш прокси");
 		}
 	}
 

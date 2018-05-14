@@ -74,9 +74,9 @@ class UDPServerSocket{
 	 */
 	public function writePacket(string $buffer, string $dest, int $port){
 		if ($buffer{1} != chr(0x07)) {
-			echo('Отправляем пакет на раклиб сервер' . PHP_EOL);
-			echo(substr(bin2hex($buffer), 0, 50) . PHP_EOL);
-			echo PHP_EOL;
+			// echo('Отправляем пакет на раклиб сервер' . PHP_EOL);
+			// echo(substr(bin2hex($buffer), 0, 50) . PHP_EOL);
+			// echo PHP_EOL;
 		}
 		return socket_sendto($this->socket, $buffer, strlen($buffer), 0, $dest, $port);
 	}

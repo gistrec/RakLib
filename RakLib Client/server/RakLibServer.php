@@ -59,6 +59,7 @@ class RakLibServer {
 
 	public function shutdown() : void{
 		$this->shutdown = true;
+		// TODO: Переместить игроков куда-нить
 	}
 
 	public function isRunning() {
@@ -78,6 +79,7 @@ class RakLibServer {
 	public function shutdownHandler(){
 		if($this->shutdown !== true){
 			var_dump("RakLib crashed!");
+			// TODO: Послать пакет EMERGENCY_SHUTDOWN
 		}
 	}
 

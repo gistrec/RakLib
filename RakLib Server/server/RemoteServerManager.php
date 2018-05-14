@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace raklib\server;
 
+use raklib\RakLib;
 use raklib\utils\InternetAddress;
 use raklib\protocol\RegisterRemoteServerRequest;
 use raklib\protocol\RegisterRemoteServerAccepted;
+use raklib\protocol\RakLibCrashPacket;
 
 class RemoteServerManager {
 
@@ -55,9 +57,12 @@ class RemoteServerManager {
 	 * Выполняется каждый 'тик'
 	 */
 	public function tick() : void{
-		$time = microtime(true);
-		foreach($this->remoteServers as $server){
-			$server->update($time);
+		// Каждую секунду
+		if(($this->server->ticks % RakLibServer::RAKLIB_TPS) === 0) {
+			$time = microtime(true);
+			foreach($this->remoteServers as $server){
+				$server->update($time);
+			}
 		}
 	}
 
@@ -90,7 +95,7 @@ class RemoteServerManager {
 		$server = $this->getServer($address);
 
 		if ($server != null) {
-			$server->receivePacket($buffer);
+			$server->handlePacket($buffer);
 		// Если сервер пытается зарегестрироваться
 		}elseif ($pid == 0x87) {
 			$pk = new RegisterRemoteServerRequest();
@@ -122,7 +127,7 @@ class RemoteServerManager {
 	}
 
 	// TODO: Что делаем при отключении сервера
-	public function closeServer(InternetAddress $address) {
+	public function removeServer(InternetAddress $address) {
 		echo "Удалили сервер " . $address->toString() . PHP_EOL;
 		unset($this->remoteServers[$address->toString()]);
 	}
@@ -134,5 +139,16 @@ class RemoteServerManager {
 		$server = new RemoteServer($this, $this->internalSocket, $address, $isMain);
 		$this->remoteServers[$address->toString()] = $server;
 		return $server;
+	}
+
+	// Функция вызывается при краше раклиба
+	// Отправляем всем серверам пакет RakLibCrashPacket
+	public function raklibCrash() {
+		$packet = chr(0x89) . RakLib::REGISTER_SERVER_KEY;
+
+		foreach ($this->remoteServers as $server) {
+			$server->sendPacket($packet);
+			unset($this->remoteServers[$server->address->toString()]);
+		}
 	}
 }
