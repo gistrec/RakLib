@@ -182,6 +182,7 @@ class SessionManager{
 				}
 			}else{
 				var_dump("Ignored unconnected packet from $address due to session already opened (0x" . dechex($pid) . ")");
+				$this->blockAddress($address->ip, 5);
 			}
 		// Если сессия не найдена, но пакет нужен для создания сесии
 		}elseif(($pk = $this->getPacketFromPool($pid, $buffer)) instanceof OfflineMessage){
@@ -277,7 +278,9 @@ class SessionManager{
 			var_dump("Удалили сессию $id");
 			// TODO: 
 			// ВЫЗЫВАЕМ НА СЕРВЕРЕ МАЙНА closeSession($identifier, $reason);
-			$session->remoteServer->streamCloseSession($session);
+			if ($session->remoteServer != null) {
+				$session->remoteServer->streamСloseSession($session);
+			}
 		}
 	}
 

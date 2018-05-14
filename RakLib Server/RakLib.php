@@ -200,6 +200,35 @@ abstract class RakLib{
 	 */
 	const PACKET_REPORT_PING = 0x11;
 
+	/*
+	 * Пакет, предназначен для пинга
+	 *
+	 * No payload
+	 */
+	const PACKET_PING = 0x12;
+
+	/*
+	 * Пакеты отвечают за регистрацию сервера и прокси
+	 * Playload: RakLib::REGISTER_SERVER_KEY
+	 */
+	const PACKET_AUTH_ACCEPT = 0x13;
+	const PACKET_AUTH_REQUEST = 0x14;
+	const PACKET_AUTH_REJECT = 0x15;
+
+	/*
+	 * Пакет нужен для трансфера игрока
+	 * Payload: (string) ip, (int) port
+	 */
+	const PACKET_TRANSFER = 0x16;
+
+	/*
+	 * Пакет нужен для передачи логин-пакета
+	 * Его нужно хранить для трансфера
+	 * Payload: (string) ip, (int) port, (string) serialized(LoginPacket $packet)
+	 */
+	const PACKET_SEND_LOGIN = 0x17;
+	const PACKET_SEND_CHUNK_REQUEST = 0x18;
+
 	/* 
 	 * TODO: Что делаем, когда сервер выключается
 	 * Сервер отсылает 'disconnect message'

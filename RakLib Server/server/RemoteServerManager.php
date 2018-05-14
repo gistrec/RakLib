@@ -93,23 +93,19 @@ class RemoteServerManager {
 		//}
 
 		$server = $this->getServer($address);
-
+		
 		if ($server != null) {
 			$server->handlePacket($buffer);
 		// Если сервер пытается зарегестрироваться
-		}elseif ($pid == 0x87) {
-			$pk = new RegisterRemoteServerRequest();
-			$pk->buffer = $buffer;
-			$pk->decode();
-
+		}elseif ($pid == RakLib::PACKET_AUTH_REQUEST) {
 			// Если сервер регестрируется с правильным auth_key
-			if ($pk->isValid()) {
-				$isMain = $pk->isMain;
-				$server = $this->registerServer($address, $isMain);
+			if (RakLib::REGISTER_SERVER_KEY == substr($buffer, 1, 16)) {
+				$isMain = (bool) substr($buffer, 16, 17);
+
+				$server = $this->registerServer(clone $address, $isMain);
 					
-				$pk = new RegisterRemoteServerAccepted();
-				$pk->encode();
-				$server->sendPacket($pk->buffer);
+				$pk = chr(RakLib::PACKET_AUTH_ACCEPT) . RAKLIB::REGISTER_SERVER_KEY; 
+				$server->sendPacket($pk);
 
 				echo "Зарегестрирован новый сервер" .PHP_EOL;
 				echo "Ip: " . $address->toString() . PHP_EOL;
@@ -127,9 +123,9 @@ class RemoteServerManager {
 	}
 
 	// TODO: Что делаем при отключении сервера
-	public function removeServer(InternetAddress $address) {
-		echo "Удалили сервер " . $address->toString() . PHP_EOL;
-		unset($this->remoteServers[$address->toString()]);
+	public function removeServer(RemoteServer $server) {
+		echo "Удалили сервер " . $server->address->toString() . PHP_EOL;
+		unset($this->remoteServers[$server->address->toString()]);
 	}
 
 	// Функция нужна для регистрации сервера
@@ -138,6 +134,7 @@ class RemoteServerManager {
 		// Создаем экземпляр сервера и добавляем его в список серверов
 		$server = new RemoteServer($this, $this->internalSocket, $address, $isMain);
 		$this->remoteServers[$address->toString()] = $server;
+
 		return $server;
 	}
 

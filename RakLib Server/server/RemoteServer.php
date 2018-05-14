@@ -66,21 +66,26 @@ class RemoteServer {
 
 			return;
 		}
-		// Add Ping
+		// Аналог пинга
+		$this->sendPacket((string)RakLib::PACKET_PING);
+		
 	}
 
 	// Функция вызывается при выключении/таймауте сервера
 	// В этом случае нужно перекинуть игроков на другой главный сервер
 	public function emergencyShutdown() {
 		var_dump("TODO: Переместить игроков на другой main сервер");
-		$this->remoteServerManager->removeServer($this->address);
+		$this->remoteServerManager->removeServer($this);
 	}
 
 	// Функция вызывается при получении пакета с сервера
 	public function handlePacket($packet) : bool{
 		$this->lastUpdate = microtime(true);
 
+// TODO: Проверка, что пакет пришел именно с нашего сервера)
+
 		$id = ord($packet{0});
+		
 		$offset = 1; // 1 байт - id сервера, 1 байт - id пакета
 		if($id === RakLib::PACKET_ENCAPSULATED){
 			$len = ord($packet{$offset++});
@@ -140,20 +145,43 @@ class RemoteServer {
 			$address = substr($packet, $offset, $len);
 			$offset += $len;
 			$timeout = Binary::readInt(substr($packet, $offset, 4));
-			$this->blockAddress($address, $timeout);
+			echo ("Block $address $timeout");
+			//$this->server->sessionManager->blockAddress($address, $timeout);
 		}elseif($id === RakLib::PACKET_UNBLOCK_ADDRESS){
 			$len = ord($packet{$offset++});
 			$address = substr($packet, $offset, $len);
-			$this->unblockAddress($address);
+			$this->server->sessionManager->unblockAddress($address);
 		}elseif($id === RakLib::PACKET_SHUTDOWN || 
 				$id === RakLib::PACKET_EMERGENCY_SHUTDOWN){
 			$this->shutdown();
-		}elseif($id === 0x87) {
+		}elseif($id === RakLib::PACKET_AUTH_REQUEST) {
 			// Если сервер еще раз просит зарегестрироваться
 			// Говорим, что он уже зарегестрирован
-			$pk = new RegisterRemoteServerAccepted();
-			$pk->encode();
-			$this->sendPacket($pk->buffer);
+			$pk = chr(RakLib::PACKET_AUTH_ACCEPT) . RAKLIB::REGISTER_SERVER_KEY; 
+			$this->sendPacket($pk);
+		}elseif ($id === RakLib::PACKET_SEND_LOGIN) {
+
+			$ip = (~ord($packet{1}) & 0xff) . "." . (~ord($packet{2}) & 0xff) . "." . (~ord($packet{3}) & 0xff) . "." . (~ord($packet{4}) & 0xff);
+			$port = unpack("n", $packet{5} . $packet{6})[1];
+			//$packet = substr($packet, 7);
+			$this->sessions[$ip . ' ' . $port]->loginPacket = $packet;
+
+		}elseif ($id == RakLib::PACKET_SEND_CHUNK_REQUEST) {
+
+			$ip = (~ord($packet{1}) & 0xff) . "." . (~ord($packet{2}) & 0xff) . "." . (~ord($packet{3}) & 0xff) . "." . (~ord($packet{4}) & 0xff);
+			$port = unpack("n", $packet{5} . $packet{6})[1];
+			//$packet = substr($packet, 7);
+			$this->sessions[$ip . ' ' . $port]->chunkRequestPacket = $packet;
+
+			if ($this->address->port == 19130) {
+				$server = $this->remoteServerManager->remoteServers['192.168.0.100 19129'];
+			}elseif ($this->address->port == 19129) {
+				$server = $this->remoteServerManager->remoteServers['192.168.0.100 19130'];
+			}
+
+			var_dump("Transfer to : " . $server->address->toString());
+			$this->sessions[$ip . ' ' . $port]->transfer($server);
+
 		}else{
 			echo "Unknown RakLib internal packet (ID 0x" . dechex($id) . ") received from server" . PHP_EOL;
 		}

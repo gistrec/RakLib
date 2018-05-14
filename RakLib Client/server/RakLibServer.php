@@ -47,9 +47,35 @@ class RakLibServer {
 		$this->isMain = $isMain;	
 	}
 
+	public function transfer($player) {
+	    // LoginPacket
+		$buffer = chr(RakLib::PACKET_SEND_LOGIN);
+		$parts = explode(".", (string)$player->getAddress());
+		assert(count($parts) === 4, "Wrong number of parts in IPv4 IP, expected 4, got " . count($parts));
+		foreach($parts as $b){
+			$buffer .= chr((~((int) $b)) & 0xff);
+		}
+		$buffer .= pack("n", $player->getPort());
+		// Конец
+		$buffer .= $player->loginPacket;
+		$this->sendToRakLib($buffer);
+
+		// ChunkRequestPacket
+		$buffer = chr(RakLib::PACKET_SEND_CHUNK_REQUEST);
+		$parts = explode(".", (string)$player->getAddress());
+		assert(count($parts) === 4, "Wrong number of parts in IPv4 IP, expected 4, got " . count($parts));
+		foreach($parts as $b){
+			$buffer .= chr((~((int) $b)) & 0xff);
+		}
+		$buffer .= pack("n", $player->getPort());
+		// Конец
+		$buffer .= $player->requestChunkRadiusPacket;
+		$this->sendToRakLib($buffer);
+	}
+
 	public function registerRakLibClient() {
-		$buffer = chr(0x87) . pack("n", strlen(RakLib::REGISTER_SERVER_KEY)) .
-				RakLib::REGISTER_SERVER_KEY . ($this->isMain ? "\x01" : "\x00");
+		$buffer = chr(RakLib::PACKET_AUTH_REQUEST) . 
+				RakLib::REGISTER_SERVER_KEY . ($this->isMain);
 		$this->sendToRakLib($buffer);
 	}
 

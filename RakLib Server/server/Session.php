@@ -23,12 +23,15 @@ use raklib\protocol\Packet;
 use raklib\protocol\PacketReliability;
 use raklib\RakLib;
 use raklib\utils\InternetAddress;
+use raklib\utils\Binary;
 
 class Session{
 	const STATE_CONNECTING = 0;
 	const STATE_CONNECTED = 1;
 	const STATE_DISCONNECTING = 2;
 	const STATE_DISCONNECTED = 3;
+
+	const 
 
 	const MAX_SPLIT_SIZE = 128;
 	const MAX_SPLIT_COUNT = 4;
@@ -45,6 +48,8 @@ class Session{
 
 	/** @var InternetAddress */
 	public $address;
+
+	public $loginPacket;
 
 	/**
 	 * Сервер, к которому подключен игрок
@@ -160,13 +165,16 @@ class Session{
 	public function transfer(RemoteServer $server) {
 		// Создаем сессию на новом сервере
 		$server->streamOpenSession($this);
-		
+
 		// Перенаправляем пакеты на новый сервер
 		$oldServer = $this->remoteServer;
 		$this->remoteServer = $server;
 
+		$this->remoteServer->sendPacket($this->loginPacket);
+		$this->remoteServer->sendPacket($this->chunkRequestPacket);
+		
 		// Закрываем сессию на старом сервере
-		$oldServer->streamCloseSession($this);
+		$oldServer->streamСloseSession($this, "Трансфер игрока на сервер ".$server->address->toString());
 	}
 
 	/*
@@ -317,14 +325,6 @@ class Session{
 		$pk = new ConnectedPing();
 		$pk->sendPingTime = $this->sessionManager->server->getRakNetTimeMS();
 		$this->queueConnectedPacket($pk, $reliability, 0, RakLib::PRIORITY_IMMEDIATE);
-	
-		//$server = $this->sessionManager->server->remoteServerManager->remoteServers['192.168.0.100 19129'];
-		foreach ($this->sessionManager->server->remoteServerManager->remoteServers as $server) {
-			var_dump("Сервера: " . $server->address->toString());
-		}
-		exit();
-		//if ($result = -mt_rand(0, 10)) $this->transfer($server);
-		//var_dump("Result: " . $result);
 	}	
 
 	/**
@@ -556,9 +556,9 @@ class Session{
 		$this->isActive = true;
 		$this->lastUpdate = microtime(true);
 
-		echo('Пришел пакет от клиента: ' . $this->address->toString() . '' . PHP_EOL);
-		echo(substr(bin2hex($packet->buffer), 0, 50) . PHP_EOL);
-		echo PHP_EOL;
+		//echo('Пришел пакет от клиента: ' . $this->address->toString() . '' . PHP_EOL);
+		//echo(substr(bin2hex($packet->buffer), 0, 50) . PHP_EOL);
+		//echo PHP_EOL;
 
 		if($packet instanceof Datagram){ //In reality, ALL of these packets are datagrams.
 			$packet->decode();
