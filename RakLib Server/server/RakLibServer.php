@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace raklib\server;
 
 use raklib\RakLib;
+use raklib\scheduler\ServerScheduler;
 use raklib\utils\InternetAddress;
 
 class RakLibServer {
@@ -28,6 +29,9 @@ class RakLibServer {
 
 	public $sessionManager;
 	public $remoteServerManager;
+
+	/** @var ServerScheduler */
+	public $scheduler;
 
 	/** @var int */
 	protected $maxMtuSize;
@@ -53,6 +57,8 @@ class RakLibServer {
 								int $maxMtuSize = 1492){
 		$this->externalAddress = $externalAddress;
 		$this->internalAddress = $internalAddress;
+
+		$this->scheduler = new ServerScheduler();
 
 		$this->serverId = mt_rand(0, PHP_INT_MAX);
 		$this->maxMtuSize = $maxMtuSize;
@@ -101,6 +107,8 @@ class RakLibServer {
 			$this->sessionManager->tick();
 			$this->remoteServerManager->tick();
 			
+			$this->scheduler->mainThreadHeartbeat($this->ticks);
+
 			$this->ticks += 1;
 		}
 	}

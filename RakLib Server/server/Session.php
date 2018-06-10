@@ -24,14 +24,13 @@ use raklib\protocol\PacketReliability;
 use raklib\RakLib;
 use raklib\utils\InternetAddress;
 use raklib\utils\Binary;
+use raklib\tasks\SendChunkRequestPacketTask;
 
 class Session{
 	const STATE_CONNECTING = 0;
 	const STATE_CONNECTED = 1;
 	const STATE_DISCONNECTING = 2;
 	const STATE_DISCONNECTED = 3;
-
-	const 
 
 	const MAX_SPLIT_SIZE = 128;
 	const MAX_SPLIT_COUNT = 4;
@@ -171,10 +170,13 @@ class Session{
 		$this->remoteServer = $server;
 
 		$this->remoteServer->sendPacket($this->loginPacket);
-		$this->remoteServer->sendPacket($this->chunkRequestPacket);
-		
+		//$this->remoteServer->sendPacket($this->chunkRequestPacket);
+		$task = new SendChunkRequestPacketTask($this, $oldServer);
+		$this->sessionManager->server->scheduler->scheduleDelayedTask($task, 200);
+
 		// Закрываем сессию на старом сервере
 		$oldServer->streamСloseSession($this, "Трансфер игрока на сервер ".$server->address->toString());
+		var_dump("Первый пошел");
 	}
 
 	/*

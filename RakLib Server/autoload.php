@@ -9,8 +9,10 @@ spl_autoload_register(function ($class_name) {
 });
 
 $classesDir = array (
+    $ROOT_DIR . 'scheduler',
     $ROOT_DIR . 'protocol',
     $ROOT_DIR . 'server',
+    $ROOT_DIR . 'tasks',
     $ROOT_DIR . 'utils',
     $ROOT_DIR
 );
