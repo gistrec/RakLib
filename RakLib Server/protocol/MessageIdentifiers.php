@@ -402,5 +402,6 @@ interface MessageIdentifiers{
 	
 	const ID_REGISTER_REMOTE_SERVER_REQUEST = 0x87;
 	const ID_REGISTER_REMOTE_SERVER_ACCEPTED = 0x88;
+	const ID_RAKLIB_CRASH = 0x89;
 	//-------------------------------------------------------------------------------------------------------------
 }

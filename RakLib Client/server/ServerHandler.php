@@ -55,14 +55,22 @@ class ServerHandler{
 	}
 
 	// Отправляем данные на RakLib Server
-	public function closeSession(string $identifier, string $reason) : void{
+	public function closeSession(string $identifier, string $reason = "unknown reason") : void{
 		$buffer = chr(RakLib::PACKET_CLOSE_SESSION) . 
 				  chr(strlen($identifier)) . $identifier . chr(strlen($reason)) . $reason;
 		$this->server->sendToRakLib($buffer);
 	}
 
 	// Отправляем данные на RakLib Server
+	// Функция вызывается каждую секунду
 	public function sendOption(string $name, $value) : void{
+		// Если сервер не получил id - пытаемся получить
+		if ($this->server->isRegister == false) {
+			$this->server->logger->warning("Сервер еще не получил ID у прокси.");
+			$this->server->logger->warning("Производится попытка подключения");
+		
+			$this->server->registerRakLibClient();
+		}
 		$buffer = chr(RakLib::PACKET_SET_OPTION) . 
 			      chr(strlen($name)) . $name . $value;
 		$this->server->sendToRakLib($buffer);
@@ -84,14 +92,8 @@ class ServerHandler{
 
 	// TODO: SHOTDOWN
 	public function shutdown() : void{
-		/*
-		$buffer = chr(RakLib::PACKET_SHUTDOWN);
-		$this->server->pushMainToThreadPacket($buffer);
-		$this->server->shutdown();
-		$this->server->synchronized(function(RakLibServer $server){
-			$server->wait(20000);
-		}, $this->server);
-		$this->server->join();*/
+		//$buffer = chr(RakLib::PACKET_SHUTDOWN);
+		//$this->server->pushMainToThreadPacket($buffer);
 	}
 
 	// TODO: SHOTDOWN
@@ -100,19 +102,15 @@ class ServerHandler{
 		// $this->server->pushMainToThreadPacket(chr(RakLib::PACKET_EMERGENCY_SHUTDOWN));
 	}
 
-	// В отличие от пакетов, которые идут на раклиб сервер
-	// У входящих пакетов с раклиба первый байт - не id сервера
-	// Поэтому используем стандартную функцию
 	public function handlePacket() : bool{
 		$address = $this->reusableAddress;
 		if($this->server->socket->readPacket($packet, $address->ip, $address->port) > 0){
-			echo('['.microtime(true) . '] Пришел пакет с раклиб сервера' . PHP_EOL);
-			echo(substr(bin2hex($packet), 0, 50) . PHP_EOL);
+			//echo('['.microtime(true) . '] Пришел пакет с раклиб сервера' . PHP_EOL);
+			//echo(substr(bin2hex($packet), 0, 50) . PHP_EOL);
 
 			$identifier = $address->toString();
 			
 			$id = ord($packet{0});
-var_dump("id:".$id);
 			$offset = 1;
 			if($id === RakLib::PACKET_ENCAPSULATED){
 				$len = ord($packet{$offset++});
@@ -120,16 +118,17 @@ var_dump("id:".$id);
 				$offset += $len;
 				$flags = ord($packet{$offset++});
 				$buffer = substr($packet, $offset);
-var_dump("handleEncapsulated($identifier)");
+//var_dump("handleEncapsulated($identifier)");
 				$this->instance->handleEncapsulated($identifier, EncapsulatedPacket::fromInternalBinary($buffer), $flags);
 			}elseif($id === RakLib::PACKET_RAW){
+				var_dump("Пришел сырой пакет RAW");
 				$len = ord($packet{$offset++});
 				$address = substr($packet, $offset, $len);
 				$offset += $len;
 				$port = Binary::readShort(substr($packet, $offset, 2));
 				$offset += 2;
 				$payload = substr($packet, $offset);
-var_dump("handleRaw($address, $port)");
+//var_dump("handleRaw($address, $port)");
 				$this->instance->handleRaw($address, $port, $payload);
 			}elseif($id === RakLib::PACKET_SET_OPTION){
 				$len = ord($packet{$offset++});
@@ -160,7 +159,7 @@ var_dump("closeSession($identifier, $reason)");
 			}elseif($id === RakLib::PACKET_INVALID_SESSION){
 				$len = ord($packet{$offset++});
 				$identifier = substr($packet, $offset, $len);
-var_dump("Invalid session($identifier, $reason)");
+var_dump("Invalid session($identifier, Invalid session)");
 				$this->instance->closeSession($identifier, "Invalid session");
 			}elseif($id === RakLib::PACKET_ACK_NOTIFICATION){
 				$len = ord($packet{$offset++});
@@ -176,14 +175,43 @@ var_dump("notifyACK($identifier, $identifierACK)");
 				$pingMS = Binary::readInt(substr($packet, $offset, 4));
 var_dump("updatePing($identifier, $pingMS)");
 				$this->instance->updatePing($identifier, $pingMS);
+			}elseif ($id === RakLib::PACKET_PING) {
+				var_dump('Ping from proxy');
 			// Если пришел пакет RegisterRemoteServerAccepted
-			}elseif ($id === 0x88){
-				echo "Получен id у RakLib Server'a" . PHP_EOL;
-				echo "Id: $id";
-				$id = Binary::readInt(substr($packet, $offset, 4));
-				$this->server->serverId = $id;
-			}
-echo PHP_EOL;
+			}elseif ($id === RakLib::PACKET_AUTH_ACCEPT){
+				if (RakLib::REGISTER_SERVER_KEY == substr($packet, 1, 17)) {
+					if (!$this->server->isRegister) {
+						$this->server->logger->info("Сервер зарегестрировался у прокси");
+						$this->server->isRegister = true;
+					}
+				}else {
+					$this->blockAddress($address->ip, 5);
+				}
+			}elseif ($id === RakLib::PACKET_AUTH_REJECT) {
+				if (RakLib::REGISTER_SERVER_KEY == substr($packet, 1, 17)) {
+					if (!$this->server->isRegister) {
+						$this->server->logger->critical("Прокси сервер отклонил запрос на регистрацию");
+					} else {
+						$this->server->logger->critical("Прокси сервер отвалился");
+						$this->server->isRegister = false;
+					}
+				}else {
+					$this->blockAddress($address->ip, 5);
+				}
+			}elseif ($id === RakLib::PACKET_SEND_LOGIN) {
+				$ip = (~ord($packet{1}) & 0xff) . "." . (~ord($packet{2}) & 0xff) . "." . (~ord($packet{3}) & 0xff) . "." . (~ord($packet{4}) & 0xff);
+				$port = unpack("n", $packet{5} . $packet{6})[1];
+				$packet = substr($packet, 7);
+				$this->instance->handlePacket($ip.' '.$port, $packet);
+				$this->instance->players[$ip.' '.$port]->loggedIn = true;
+			//}elseif ($id == RakLib::PACKET_SEND_CHUNK_REQUEST) {
+			//	$ip = (~ord($packet{1}) & 0xff) . "." . (~ord($packet{2}) & 0xff) . "." . (~ord($packet{3}) & 0xff) . "." . (~ord($packet{4}) & 0xff);
+			//	$port = unpack("n", $packet{5} . $packet{6})[1];
+			//	$packet = substr($packet, 7);
+			//	$this->instance->handlePacket($ip.' '.$port, $packet);
+			//	$this->instance->players[$ip.' '.$port]->loggedIn = true;
+			}//
+
 			return true;
 		}
 

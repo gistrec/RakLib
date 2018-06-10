@@ -9,6 +9,7 @@ declare(strict_types=1);
 namespace raklib\server;
 
 use raklib\RakLib;
+use raklib\scheduler\ServerScheduler;
 use raklib\utils\InternetAddress;
 
 class RakLibServer {
@@ -26,8 +27,11 @@ class RakLibServer {
 	 */
 	private $internalAddress;
 
-	private $sessionManager;
-	private $remoteServerManager;
+	public $sessionManager;
+	public $remoteServerManager;
+
+	/** @var ServerScheduler */
+	public $scheduler;
 
 	/** @var int */
 	protected $maxMtuSize;
@@ -37,6 +41,16 @@ class RakLibServer {
 	 * @var int 
 	*/
 	protected $startTimeMS;
+	
+	/** @var int */
+	public $ticks = 0;
+
+	/** 
+	 * TODO:
+	 * Название сервера, отправляется в UnconnectedPing
+	 * MCPE;Название;две версии протокола через пробел;версия сервера;текущий онлайн;всего онлайн
+	 */
+	public $name = "MCPE;§b§lRaklibTest;10 10;1.1.0;0;1000";
 
 	public function __construct(InternetAddress $externalAddress,
 								InternetAddress $internalAddress,
@@ -44,14 +58,14 @@ class RakLibServer {
 		$this->externalAddress = $externalAddress;
 		$this->internalAddress = $internalAddress;
 
+		$this->scheduler = new ServerScheduler();
+
 		$this->serverId = mt_rand(0, PHP_INT_MAX);
 		$this->maxMtuSize = $maxMtuSize;
 
 		$this->startTimeMS = (int) (microtime(true) * 1000);
 
 		$this->protocolVersion = RakLib::DEFAULT_PROTOCOL_VERSION;
-
-		$this->run();
 	}
 
 	public function shutdown() : void{
@@ -92,7 +106,19 @@ class RakLibServer {
 
 			$this->sessionManager->tick();
 			$this->remoteServerManager->tick();
+			
+			$this->scheduler->mainThreadHeartbeat($this->ticks);
+
+			$this->ticks += 1;
 		}
+	}
+
+	// TODO:
+	// Функция вызывается при выключении/краше раклиба 
+	public function shutdownHandler() {
+		echo "Производится отключение раклиба" . PHP_EOL;
+		$this->sessionManager->raklibCrash();
+		$this->remoteServerManager->raklibCrash();
 	}
 
 	public function run() : void{
@@ -104,6 +130,8 @@ class RakLibServer {
 
 			$this->sessionManager = new SessionManager($this, $externalSocket, 
 				                                       $this->maxMtuSize);
+
+			//register_shutdown_function([$this, "shutdownHandler"]);
 
 			echo 'Раклиб запущен '    . PHP_EOL;
 			echo 'Внешний адрес: '    . $externalSocket->getBindAddress() . PHP_EOL;

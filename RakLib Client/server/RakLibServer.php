@@ -9,6 +9,9 @@ use raklib\RakLib;
 use raklib\utils\InternetAddress;
 
 class RakLibServer {
+	// Зарегестрирован ли сервер
+	public $isRegister = false;
+
 	//** @var InternetAddress */
 	private $rakLibAddress;
 	private $serverAddress;
@@ -18,9 +21,6 @@ class RakLibServer {
 
 	protected $loaderPath;
 
-	/** @var int */
-	public $serverId = -1;
-
 	public $isMain = true;
 
 	protected $maxMtuSize = 1492;
@@ -28,24 +28,54 @@ class RakLibServer {
 	public $UDPServerSocket;
 	public $socket;
 
+	public $logger;
+
 	/**
 	 * @param \ThreadedLogger $logger
-	 * @param InternetAddress $server
-	 * @param InternetAddress $raklib
+	 * @param InternetAddress $serverAddress
+	 * @param InternetAddress $raklibAddress
 	 */
-	public function __construct(\ThreadedLogger $logger, InternetAddress $server, InternetAddress $raklib, bool $isMain){
+	public function __construct(\ThreadedLogger $logger, InternetAddress $serverAddress, 
+								InternetAddress $raklibAddress, bool $isMain){
+		$this->logger = $logger;
+
 		// Адрес этого сервера
-		$this->serverAddress = $server;
+		$this->serverAddress = $serverAddress;
 		// Раклиб адрес
-		$this->rakLibAddress = $raklib;
+		$this->rakLibAddress = $raklibAddress;
 
 		$this->isMain = $isMain;	
 	}
 
+	public function transfer($player) {
+	    // LoginPacket
+		$buffer = chr(RakLib::PACKET_SEND_LOGIN);
+		$parts = explode(".", (string)$player->getAddress());
+		assert(count($parts) === 4, "Wrong number of parts in IPv4 IP, expected 4, got " . count($parts));
+		foreach($parts as $b){
+			$buffer .= chr((~((int) $b)) & 0xff);
+		}
+		$buffer .= pack("n", $player->getPort());
+		// Конец
+		$buffer .= $player->loginPacket;
+		$this->sendToRakLib($buffer);
+
+		// ChunkRequestPacket
+		$buffer = chr(RakLib::PACKET_SEND_CHUNK_REQUEST);
+		$parts = explode(".", (string)$player->getAddress());
+		assert(count($parts) === 4, "Wrong number of parts in IPv4 IP, expected 4, got " . count($parts));
+		foreach($parts as $b){
+			$buffer .= chr((~((int) $b)) & 0xff);
+		}
+		$buffer .= pack("n", $player->getPort());
+		// Конец
+		$buffer .= $player->requestChunkRadiusPacket;
+		$this->sendToRakLib($buffer);
+	}
+
 	public function registerRakLibClient() {
-		$buffer = chr(0x87) . pack("n", strlen(RakLib::REGISTER_SERVER_KEY)) .
-				RakLib::REGISTER_SERVER_KEY . ($this->isMain ? "\x01" : "\x00");
-		var_dump($this->rakLibAddress);
+		$buffer = chr(RakLib::PACKET_AUTH_REQUEST) . 
+				RakLib::REGISTER_SERVER_KEY . ($this->isMain);
 		$this->sendToRakLib($buffer);
 	}
 
@@ -55,23 +85,15 @@ class RakLibServer {
 
 	public function shutdown() : void{
 		$this->shutdown = true;
+		// TODO: Переместить игроков куда-нить
 	}
 
 	public function isRunning() {
 		return !($this->shutdown === true);
 	}
 
-	/**
-	 * Returns the RakNet server ID
-	 * @return int
-	 */
-	public function getServerId() : int{
-		return $this->serverId;
-	}
-
 	// Добавляем к пакету id этого сервера первым байтом
 	public function sendToRakLib($packet) {
-		$packet = chr($this->serverId) . $packet;
 		$this->UDPServerSocket->writePacket($packet, $this->rakLibAddress->ip,
 			$this->rakLibAddress->port);
 	}
@@ -83,6 +105,7 @@ class RakLibServer {
 	public function shutdownHandler(){
 		if($this->shutdown !== true){
 			var_dump("RakLib crashed!");
+			// TODO: Послать пакет EMERGENCY_SHUTDOWN
 		}
 	}
 

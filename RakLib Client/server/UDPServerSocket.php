@@ -73,10 +73,10 @@ class UDPServerSocket{
 	 * @return int|bool
 	 */
 	public function writePacket(string $buffer, string $dest, int $port){
-		if ($buffer{1} != chr(0x07)) {
-			echo('Отправляем пакет на раклиб сервер' . PHP_EOL);
-			echo(substr(bin2hex($buffer), 0, 50) . PHP_EOL);
-			echo PHP_EOL;
+		if ($buffer{1} != chr(0x07) && $buffer{1} != 1 ) {
+			// echo('Отправляем пакет на раклиб сервер' . PHP_EOL);
+			// echo(substr(bin2hex($buffer), 0, 50) . PHP_EOL);
+			// echo PHP_EOL;
 		}
 		return socket_sendto($this->socket, $buffer, strlen($buffer), 0, $dest, $port);
 	}

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace raklib\server;
 
+use raklib\RakLib;
 use raklib\utils\InternetAddress;
 use raklib\protocol\RegisterRemoteServerRequest;
 use raklib\protocol\RegisterRemoteServerAccepted;
+use raklib\protocol\RakLibCrashPacket;
 
 class RemoteServerManager {
 
@@ -18,19 +20,19 @@ class RemoteServerManager {
 	 * Сервера
 	 * @var float[] string (address) => float (unblock time) 
 	 */
-	public $servers = [];
+	public $remoteServers = [];
 
 	// Счетчик id серверов
 	// Увеличивается на 1 при добавлении нового сервера
 	public $unique_serverId = 0;
 
-	/** @var UDPServerSocket */
+	/** @var UDPremoteServersocket */
 	public $internalSocket;
 
 	public $reusableAddress;
 
 	public function __construct(RakLibServer $server, 
-								UDPServerSocket $internalSocket) {
+								UDPServersocket $internalSocket) {
 		$this->server = $server;
 
 		$this->internalSocket = $internalSocket;
@@ -41,7 +43,7 @@ class RemoteServerManager {
 	// Получаем главный сервер (или, наверное лучше сказать доступный)
 	// К которому будет подключен новый игрок
 	public function getMainServer() : RemoteServer{
-		foreach ($this->servers as $server) {
+		foreach ($this->remoteServers as $server) {
 			// Если сервер главный
 			if ($server->main) return $server;
 		}
@@ -55,7 +57,13 @@ class RemoteServerManager {
 	 * Выполняется каждый 'тик'
 	 */
 	public function tick() : void{
-		// TODO
+		// Каждую секунду
+		if(($this->server->ticks % RakLibServer::RAKLIB_TPS) === 0) {
+			$time = microtime(true);
+			foreach($this->remoteServers as $server){
+				$server->update($time);
+			}
+		}
 	}
 
 	// Получаем информацию с сервера
@@ -72,65 +80,72 @@ class RemoteServerManager {
 			return false;
 		}
 
-		// Структура пакета:
-		// id сервера
-		// id пакета
-		if ($buffer{1} != chr(0x07)) {
-			echo('Пришел пакет с сервера '.$address->toString() . PHP_EOL);
-			echo(substr(bin2hex($buffer), 0, 50) . PHP_EOL);
-			echo PHP_EOL;
-		}
+		// Получаем PacketID
+		$pid = ord($buffer{0});
 
-		$serverId = ord($buffer{0});
+		// Получаем сессию по адресу
+		$server = $this->getServer($address);
 
-var_dump($buffer);
+		//if ($buffer{1} != chr(0x07)) {
+		//	echo('Пришел пакет с сервера '.$address->toString() . PHP_EOL);
+		//	echo(substr(bin2hex($buffer), 0, 50) . PHP_EOL);
+		//	echo PHP_EOL;
+		//}
 
-		if (isset($this->servers[$serverId])) {
-			$this->servers[$serverId]->receivePacket($buffer);
-
+		$server = $this->getServer($address);
+		
+		if ($server != null) {
+			$server->handlePacket($buffer);
 		// Если сервер пытается зарегестрироваться
-		}elseif ($serverId == 0xff && ord($buffer{1}) == 0x87) {
-			$pk = new RegisterRemoteServerRequest();
-			$pk->buffer = $buffer;
-			$pk->decode();
+		}elseif ($pid == RakLib::PACKET_AUTH_REQUEST) {
+			// Если сервер регестрируется с правильным auth_key
+			if (RakLib::REGISTER_SERVER_KEY == substr($buffer, 1, 16)) {
+				$isMain = (bool) substr($buffer, 16, 17);
 
-			if ($pk->isValid()) {
-				$isMain = $pk->isMain;
-				$id = $this->registerServer($address->ip, $address->port, $isMain);
+				$server = $this->registerServer(clone $address, $isMain);
 					
-				$pk = new RegisterRemoteServerAccepted();
-				$pk->serverId = $id;
-				$pk->encode();
-
-				$this->servers[$id]->sendToServer($pk->buffer);
-				// $this->sessionManager->sendPacket($pk, $address);
+				$pk = chr(RakLib::PACKET_AUTH_ACCEPT) . RAKLIB::REGISTER_SERVER_KEY; 
+				$server->sendPacket($pk);
 
 				echo "Зарегестрирован новый сервер" .PHP_EOL;
 				echo "Ip: " . $address->toString() . PHP_EOL;
 				echo "Главный: " . ($isMain == 1 ? "да" : "нет") . PHP_EOL;
-				echo "Id: $id" . PHP_EOL;
 			} else  {
 				// TODO: block address
-				//$this->sessionManager->blockAddress($address);
+				//$this->blockAddress($address);
 			}
 		}
 		return true;
 	}
 
-	// TODO: Что делаем при отключении сервера
-	public function closeServer($id) {
+	public function getServer(InternetAddress $address) : ?RemoteServer{
+		return $this->remoteServers[$address->toString()] ?? null;
+	}
 
+	// TODO: Что делаем при отключении сервера
+	public function removeServer(RemoteServer $server) {
+		echo "Удалили сервер " . $server->address->toString() . PHP_EOL;
+		unset($this->remoteServers[$server->address->toString()]);
 	}
 
 	// Функция нужна для регистрации сервера
-	// У каждого сервера есть id, ip, port, главный сервер или нет
-	private function registerServer(string $ip, int $port, bool $isMain) : int{
+	// У каждого сервера есть ip, port, главный сервер или нет
+	private function registerServer(InternetAddress $address, bool $isMain) : RemoteServer{
 		// Создаем экземпляр сервера и добавляем его в список серверов
-		$address = new InternetAddress($ip, $port);
-		$id = $this->unique_serverId++;
-		$this->servers[$id] = new RemoteServer($this, 
-											   $this->internalSocket,
-											   $address, $id, $isMain);
-		return $id;
+		$server = new RemoteServer($this, $this->internalSocket, $address, $isMain);
+		$this->remoteServers[$address->toString()] = $server;
+
+		return $server;
+	}
+
+	// Функция вызывается при краше раклиба
+	// Отправляем всем серверам пакет RakLibCrashPacket
+	public function raklibCrash() {
+		$packet = chr(0x89) . RakLib::REGISTER_SERVER_KEY;
+
+		foreach ($this->remoteServers as $server) {
+			$server->sendPacket($packet);
+			unset($this->remoteServers[$server->address->toString()]);
+		}
 	}
 }

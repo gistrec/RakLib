@@ -50,9 +50,9 @@ class OfflineMessageHandler{
 				$pk = new UnconnectedPong();
 				// RakNet server ID
 				// $pk->serverID = $this->sessionManager->getID();
-				$pk->serverId = 0;
+				$pk->serverID = 0;
 				$pk->pingID = $packet->pingID;
-				$pk->serverName = $this->sessionManager->name;
+				$pk->serverName = $this->sessionManager->server->name;
 				$this->sessionManager->sendPacket($pk, $address);
 				return true;
 			// Когда клиент шлет OpenConnectionRequest1
@@ -72,7 +72,9 @@ class OfflineMessageHandler{
 				}else{*/
 					$pk = new OpenConnectionReply1();
 					$pk->mtuSize = $packet->mtuSize + 28; //IP header size (20 bytes) + UDP header size (8 bytes)
-					$pk->serverID = $this->sessionManager->getID();
+					// RakNet server ID
+					//$pk->serverID = $this->sessionManager->getID();
+					$pk->serverID = 0;
 					$this->sessionManager->sendPacket($pk, $address);
 				//}
 				return true;
@@ -86,7 +88,8 @@ class OfflineMessageHandler{
 				$mtuSize = min(abs($packet->mtuSize), $this->sessionManager->maxMtuSize);
 				$pk = new OpenConnectionReply2();
 				$pk->mtuSize = $mtuSize;
-				$pk->serverID = $this->sessionManager->getID();
+				// $pk->serverID = $this->sessionManager->getID();
+				$pk->serverID = 0;
 				$pk->clientAddress = $address;
 				$this->sessionManager->sendPacket($pk, $address);
 				$this->sessionManager->createSession($address, $packet->clientID, $mtuSize);

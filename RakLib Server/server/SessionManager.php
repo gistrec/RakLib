@@ -32,26 +32,16 @@ class SessionManager{
 	protected $packetPool;
 
 	/** @var RakLibServer */
-	protected $server;
+	public $server;
 	/** @var UDPServerSocket */
 	public $externalSocket;
-
-	/** @var int */
-	protected $receiveBytes = 0;
-	/** @var int */
-	protected $sendBytes = 0;
 
 	/** @var Session[] */
 	protected $sessions = [];
 
 	/** @var OfflineMessageHandler */
 	protected $offlineMessageHandler;
-	/** 
-	 * Название сервера, отправляется в UnconnectedPing
-	 * Структура: 
-	 * MCPE;Название;две версии протокола через пробел;версия сервера;текущий онлайн;всего онлайн
-	 */
-	public $name = "MCPE;§b§lRaklibTest;10 10;1.1.0;0;1000";
+
 	/** 
 	* Лимит пакетов с одного адреса в течении 1го тика
 	*/
@@ -59,15 +49,6 @@ class SessionManager{
 
 	/** @var bool */
 	protected $shutdown = false;
-
-	/** @var int */
-	protected $ticks = 0;
-
-	/** 
-	 * Время последнего тика раклиб сервера в милисекундах
-	 * @var float
-	 */
-	protected $lastMeasure;
 
 	/** 
 	 * Заблокированные адреса
@@ -105,7 +86,6 @@ class SessionManager{
 	}
 
 
-
 	/**
 	 * Выполняется каждый 'тик'
 	 * Обновляем все сессии
@@ -120,16 +100,7 @@ class SessionManager{
 		$this->ipSec = [];
 
 		// Каждую секунду
-		if(($this->ticks % RakLibServer::RAKLIB_TPS) === 0){
-			// TODO: update statistic
-			//$diff = max(0.005, $time - $this->lastMeasure);
-			//$this->streamOption("bandwidth", serialize([
-			//	"up" => $this->sendBytes / $diff,
-			//	"down" => $this->receiveBytes / $diff
-			//]));
-			$this->lastMeasure = $time;
-			// $this->sendBytes = 0;
-			// $this->receiveBytes = 0;
+		if(($this->server->ticks % RakLibServer::RAKLIB_TPS) === 0){
 
 			// Уменьшаем время блокировки для всех заблокированных клиентов
 			if(count($this->block) > 0){
@@ -144,8 +115,6 @@ class SessionManager{
 				}
 			}
 		}
-
-		++$this->ticks;
 	}
 
 	
@@ -213,6 +182,7 @@ class SessionManager{
 				}
 			}else{
 				var_dump("Ignored unconnected packet from $address due to session already opened (0x" . dechex($pid) . ")");
+				$this->blockAddress($address->ip, 5);
 			}
 		// Если сессия не найдена, но пакет нужен для создания сесии
 		}elseif(($pk = $this->getPacketFromPool($pid, $buffer)) instanceof OfflineMessage){
@@ -234,9 +204,6 @@ class SessionManager{
 			// RakNet does not currently use the 0x02 or 0x01 bitflags on any datagram header, so we can use
 			// this to identify the difference between loose datagrams and packets like Query.
 			var_dump("Ignored connected packet from $address due to no session opened (0x" . dechex($pid) . ")");
-		}else{
-			// TODO: WTF
-			//$this->streamRaw($address, $buffer);
 		}
 		//	var_dump("Packet from $address (" . strlen($buffer) . " bytes): 0x" . bin2hex($buffer));
 		//	$this->blockAddress($address->ip, 5);
@@ -251,7 +218,7 @@ class SessionManager{
 	 */
 	public function sendPacket(Packet $packet, InternetAddress $address) : void{
 		$packet->encode();
-		$this->sendBytes += $this->externalSocket->writePacket($packet->buffer, $address->ip, $address->port);
+		$this->externalSocket->writePacket($packet->buffer, $address->ip, $address->port);
 	}
 
 	/**
@@ -286,10 +253,6 @@ class SessionManager{
 		return $this->sessions[$address->toString()] ?? null;
 	}
 
-	public function sessionExists(InternetAddress $address) : bool{
-		return isset($this->sessions[$address->toString()]);
-	}
-
 	public function createSession(InternetAddress $address, int $clientId, int $mtuSize) : Session{
 		// Проверка на наличие мест для сессии
 		// И если нужно, освобождение неактивных
@@ -306,7 +269,7 @@ class SessionManager{
 	}
 
 	/**
-	 * Удаление сессии из раклиба 
+	 * Удаление сессии из раклиба
 	 */
 	public function removeSession(Session $session, string $reason = "unknown") : void{
 		$id = $session->getAddress()->toString();
@@ -315,12 +278,14 @@ class SessionManager{
 			var_dump("Удалили сессию $id");
 			// TODO: 
 			// ВЫЗЫВАЕМ НА СЕРВЕРЕ МАЙНА closeSession($identifier, $reason);
-			$session->remoteServer->closeSession($session);
+			if ($session->remoteServer != null) {
+				$session->remoteServer->streamСloseSession($session);
+			}
 		}
 	}
 
 	/*
-	 * Удаление сессии на серверве
+	 * Сессия сперва удалилась на сервере
 	 * Поэтому просто убираем из массива сессий
 	 */
 	public function removeSessionInternal(Session $session) : void{
@@ -337,6 +302,14 @@ class SessionManager{
 					}
 				}
 			}
+		}
+	}
+
+	// Функция вызывается при краше раклиба
+	// Закрываем все сессии
+	public function raklibCrash() {
+		foreach ($this->sessions as $session) {
+			$this->removeSession($session, "Краш прокси");
 		}
 	}
 
